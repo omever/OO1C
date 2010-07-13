@@ -1,16 +1,26 @@
+PRJ=/usr/lib/ooo3/basis3.1/sdk
+SETTINGS=$(PRJ)/settings
+
+include $(SETTINGS)/settings.mk
+include $(SETTINGS)/std.mk
+include $(SETTINGS)/dk.mk
+
 TARGET=oolink.so
 
-SOURCES=oolink.cpp \
+SOURCES=addinnative.cpp \
 	dllmain.cpp \
-	stdafx.cpp 
+	warpcontainer.cpp \
+	stdafx.cpp
 
 LIBS=pthread
 
 OBJECTS=$(SOURCES:.cpp=.o)
 INCLUDES=-Iinclude
-CXXLAGS=$(CXXFLAGS) $(INCLUDES) -m32 -finput-charset=WINDOWS-1251 -fPIC
+CXXLAGS=$(CXXFLAGS) $(INCLUDES) $(CFLAGS) $(CC_FLAGS) $(CC_INCLUDES) $(CC_DEFINES) -m32 -finput-charset=UTF-8 -fPIC
 
 all: $(TARGET)
+
+include $(SETTINGS)/stdtarget.mk
 
 -include $(OBJECTS:.o=.d)
 
@@ -24,7 +34,15 @@ all: $(TARGET)
 	@rm -f $*.d.tmp
 
 $(TARGET): $(OBJECTS) Makefile
-	g++ $(CXXLAGS) -shared $(OBJECTS) -o $(TARGET) $(addprefix -l, $(LIBS))
+	g++ $(EXE_LINK_FLAGS) $(LINK_LIBS) -shared $(OBJECTS) -o $(TARGET) $(addprefix -l, $(LIBS)) $(CPPUHELPERLIB) $(CPPULIB) $(SALHELPERLIB) $(SALLIB) $(STLPORTLIB) $(STDC++LIB) $(CPPUHELPERDYLIB) $(CPPUDYLIB) $(SALHELPERDYLIB) $(SALDYLIB)
 
 clean:
 	-rm $(TARGET) *.o *.d
+
+
+ifeq "$(OS)" "WIN"
+INI_EXTENSION=.ini
+else
+INI_EXTENSION=rc
+endif
+

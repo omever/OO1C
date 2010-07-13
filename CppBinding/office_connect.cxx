@@ -45,11 +45,17 @@
 #include <com/sun/star/lang/XMultiServiceFactory.hpp>
 #include <com/sun/star/lang/XMultiComponentFactory.hpp>
 #include <com/sun/star/frame/XComponentLoader.hpp>
+#include <com/sun/star/reflection/XIdlReflection.hpp>
+#include <com/sun/star/reflection/XIdlClass.hpp>
+#include <com/sun/star/reflection/XIdlArray.hpp>
+#include <com/sun/star/reflection/XIdlMember.hpp>
+#include <com/sun/star/reflection/XIdlMethod.hpp>
 
 using namespace com::sun::star::uno;
 using namespace com::sun::star::lang;
 using namespace com::sun::star::bridge;
 using namespace com::sun::star::frame;
+using namespace com::sun::star::reflection;
 using namespace rtl;
 using namespace cppu;
 
@@ -72,24 +78,28 @@ int main( )
 			rComponentContext );
 
     // gets the service manager from the office
-    Reference< XMultiComponentFactory > xMultiComponentFactoryServer(
+    Reference< XMultiComponentFactory > cmgr(
         rComponentContext->getServiceManager() );
-  
-    /* Creates an instance of a component which supports the services specified
-       by the factory. Important: using the office component context.
-    */
-    Reference< XInterface > r = rServiceManager->createInstance( 
-        OUString::createFromAscii("com.sun.star.frame.Desktop"))
+
+    Reference< XInterface > r = cmgr->createInstanceWithContext( 
+        OUString::createFromAscii("com.sun.star.frame.Desktop"), rComponentContext);
     
     Any a(r);
     
-    typelib_TypeDescription  * type;
-    a.getValueTypeDescription(&type);
-    
-    printf( "Type class is: %s\n", OUString(type->pTypeName).);
-    
-    typelib_typedescription_release(type);
-    
+    Reference< XInterface > xInterface = cmgr->createInstanceWithContext(
+	OUString::createFromAscii("com.sun.star.reflection.CoreReflection"), rComponentContext);
+    if(xInterface.is()) {
+	Reference< XIdlReflection > m(xInterface, UNO_QUERY);
+        Reference< XIdlClass > idl1 = m->getType(a);
+
+	Sequence< Reference< XIdlMethod > > mlist = idl1->getMethods();
+	for(int i = 0; i < mlist.getLength(); ++i) {
+		OString o = OUStringToOString( mlist[i]->getName(), RTL_TEXTENCODING_ASCII_US );
+		printf( "Method: %s\n", o.pData->buffer );
+	}
+    } else {
+	printf("Error IS!\n");
+    }
         printf( "Connected sucessfully to the office\n" );
 	}	
 	catch( Exception &e )

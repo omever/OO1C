@@ -1,45 +1,3 @@
-#*************************************************************************
-#
-#  $RCSfile: Makefile,v $
-#
-#  $Revision: 1.8 $
-#
-#  last change: $Author: rt $ $Date: 2008-07-11 14:24:18 $
-#
-#  The Contents of this file are made available subject to the terms of
-#  the BSD license.
-#  
-#  Copyright (c) 2003 by Sun Microsystems, Inc.
-#  All rights reserved.
-#
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions
-#  are met:
-#  1. Redistributions of source code must retain the above copyright
-#     notice, this list of conditions and the following disclaimer.
-#  2. Redistributions in binary form must reproduce the above copyright
-#     notice, this list of conditions and the following disclaimer in the
-#     documentation and/or other materials provided with the distribution.
-#  3. Neither the name of Sun Microsystems, Inc. nor the names of its
-#     contributors may be used to endorse or promote products derived
-#     from this software without specific prior written permission.
-#
-#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-#  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-#  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-#  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-#  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-#  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-#  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-#  OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-#  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
-#  TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-#  USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#     
-#**************************************************************************
-
-# Builds the ProfUNO cpp binding example of the Developers Guide
-
 PRJ=/usr/lib/ooo3/basis3.1/sdk
 SETTINGS=$(PRJ)/settings
 
@@ -88,16 +46,16 @@ $(OUT_BIN)/%.rdb :
 
 $(SAMPLE_OBJ_OUT)/%.$(OBJ_EXT) : %.cxx $(SDKTYPEFLAG)
 	-$(MKDIR) $(subst /,$(PS),$(@D))
-	$(CC) $(CC_FLAGS) $(CC_INCLUDES) -I$(SAMPLE_INC_OUT) $(CC_DEFINES) $(CC_OUTPUT_SWITCH)$(subst /,$(PS),$@) $<
+	$(CC) $(CFLAGS) $(CC_FLAGS) $(CC_INCLUDES) -I$(SAMPLE_INC_OUT) $(CC_DEFINES) $(CC_OUTPUT_SWITCH)$(subst /,$(PS),$@) $<
 
 $(OUT_BIN)/%$(EXE_EXT) : $(SAMPLE_OBJ_OUT)/%.$(OBJ_EXT)
 	-$(MKDIR) $(subst /,$(PS),$(@D))
 	-$(MKDIR) $(subst /,$(PS),$(SAMPLE_GEN_OUT))
 ifeq "$(OS)" "WIN"
-	$(LINK) $(EXE_LINK_FLAGS) /OUT:$@ /MAP:$(SAMPLE_GEN_OUT)/$(subst $(EXE_EXT),.map,$(@F)) \
+	$(LINK) $(CFLAGS) $(EXE_LINK_FLAGS) /OUT:$@ /MAP:$(SAMPLE_GEN_OUT)/$(subst $(EXE_EXT),.map,$(@F)) \
 	  $< $(CPPUHELPERLIB) $(CPPULIB) $(SALHELPERLIB) $(SALLIB) $(STLPORTLIB)
 else
-	$(LINK) $(EXE_LINK_FLAGS) $(LINK_LIBS) -o $@ $< \
+	$(LINK) $(CFLAGS) $(EXE_LINK_FLAGS) $(LINK_LIBS) -o $@ $< \
 	  $(CPPUHELPERLIB) $(CPPULIB) $(SALHELPERLIB) $(SALLIB) $(STLPORTLIB) $(STDC++LIB) $(CPPUHELPERDYLIB) $(CPPUDYLIB) $(SALHELPERDYLIB) $(SALDYLIB)
 ifeq "$(OS)" "MACOSX"
 	$(INSTALL_NAME_URELIBS_BIN)  $@
