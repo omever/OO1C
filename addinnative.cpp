@@ -15,6 +15,8 @@
 #include "addinnative.h"
 #include <string>
 
+using namespace std;
+
 #define TIME_LEN 34
 
 #define BASE_ERRNO     7
@@ -343,83 +345,27 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     case eMethGetContext:
 	try {
 	    __context = ::cppu::bootstrap();
-	
-	    __factory = __context->getServiceManager();
+	    __service = __context->getServiceManager();
 	}
 	catch (Exception &e) {
-            wchar_t* wsMsgBuf;
-	    OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-            name = o.pData->buffer;
-            size = mbstowcs(0, name, 0) + 1;
-            wsMsgBuf = new wchar_t[size];
-            memset(wsMsgBuf, 0, size * sizeof(wchar_t));
-            size = mbstowcs(wsMsgBuf, name, size);
+        wchar_t* wsMsgBuf;
+        OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
+        name = o.pData->buffer;
+        size = mbstowcs(0, name, 0) + 1;
+        wsMsgBuf = new wchar_t[size];
+        memset(wsMsgBuf, 0, size * sizeof(wchar_t));
+        size = mbstowcs(wsMsgBuf, name, size);
 
-            addError(ADDIN_E_VERY_IMPORTANT, L"AddInNativeOO", wsMsgBuf, eGetContextException);
-            delete[] wsMsgBuf;
-            return false;
+        addError(ADDIN_E_VERY_IMPORTANT, L"AddInNativeOO", wsMsgBuf, eGetContextException);
+        delete[] wsMsgBuf;
+        return false;
 	}
 	
+    Any *ctx = new Any(__context);
+
+    wstring res = warp(ctx);
+    wchar_t 
 	break;
-    case eMethLoadPicture:
-        {
-            if (!lSizeArray || !paParams)
-                return false;
-            
-            switch(TV_VT(paParams))
-            {
-            case VTYPE_PSTR:
-                name = paParams->pstrVal;
-                break;
-            case VTYPE_PWSTR:
-                ::convFromShortWchar(&wsTmp, TV_WSTR(paParams));
-                size = wcstombs(0, wsTmp, 0)+1;
-                mbstr = new char[size];
-                memset(mbstr, 0, size);
-                size = wcstombs(mbstr, wsTmp, getLenShortWcharStr(TV_WSTR(paParams)));
-                name = mbstr;
-                break;
-            default:
-                return false;
-            }
-        }
-                
-        file = fopen(name, "rb");
-
-        if (file == 0)
-        {
-            wchar_t* wsMsgBuf;
-            uint32_t err = errno;
-            name = strerror(err);
-            size = mbstowcs(0, name, 0) + 1;
-            wsMsgBuf = new wchar_t[size];
-            memset(wsMsgBuf, 0, size * sizeof(wchar_t));
-            size = mbstowcs(wsMsgBuf, name, size);
-
-            addError(ADDIN_E_VERY_IMPORTANT, L"AddInNative", wsMsgBuf, RESULT_FROM_ERRNO(err));
-            delete[] wsMsgBuf;
-            return false;
-        }
-
-        fseek(file, 0, SEEK_END);
-        size = ftell(file);
-        
-        if (size && m_iMemory->AllocMemory((void**)&pvarRetValue->pstrVal, size))
-        {
-            fseek(file, 0, SEEK_SET);
-            size = fread(pvarRetValue->pstrVal, 1, size, file);
-            pvarRetValue->strLen = size;
-            TV_VT(pvarRetValue) = VTYPE_BLOB;
-            
-            ret = true;
-        }
-        if (file)
-            fclose(file);
-
-        if (mbstr)
-            delete[] mbstr;
-
-        break;
     }
     return ret; 
 }

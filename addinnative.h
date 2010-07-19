@@ -4,6 +4,7 @@
 #include "ComponentBase.h"
 #include "AddInDefBase.h"
 #include "IMemoryManager.h"
+#include "warpcontainer.h"
 
 #include <cppuhelper/bootstrap.hxx>
 #include <com/sun/star/bridge/XUnoUrlResolver.hpp>
@@ -27,7 +28,7 @@ using namespace cppu;
 
 ///////////////////////////////////////////////////////////////////////////////
 // class CAddInNativeOO
-class CAddInNativeOO : public IComponentBase
+class CAddInNativeOO : public IComponentBase, public Warp
 {
 public:
     enum Props
@@ -92,6 +93,7 @@ private:
     uint32_t            m_uiTimer;
 
     Reference< XComponentContext > __context;
+    Reference< XMultiComponentFactory > __service;
     Reference< XSingleComponentFactory > __factory;
 };
 

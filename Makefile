@@ -1,4 +1,4 @@
-PRJ=/usr/lib/ooo3/basis3.1/sdk
+PRJ=/usr/lib/ooo3/basis-link/sdk
 SETTINGS=$(PRJ)/settings
 
 include $(SETTINGS)/settings.mk
