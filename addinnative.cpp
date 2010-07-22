@@ -364,8 +364,19 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     Any *ctx = new Any(__context);
 
     wstring res = warp(ctx);
-    wchar_t 
-	break;
+
+    size_t iActualSize = res.length()+1;
+
+    if (m_iMemory && res.length())
+    {
+        if(m_iMemory->AllocMemory((void**)&pvarRetValue, iActualSize * sizeof(WCHAR_T))) {
+            ::convToShortWchar(pvarRetValue->pwstrVal, res.c_str(), iActualSize);
+            pvarRetValue->wstrLen = res.length();
+        }
+
+    }
+
+    break;
     }
     return ret; 
 }

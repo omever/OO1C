@@ -15,7 +15,7 @@ SOURCES=addinnative.cpp \
 LIBS=pthread
 
 OBJECTS=$(SOURCES:.cpp=.o)
-INCLUDES=-Iinclude
+INCLUDES=-Iinclude -I/usr/lib/ooo3/basis-link/sdk/include
 CXXLAGS=$(CXXFLAGS) $(INCLUDES) $(CFLAGS) $(CC_FLAGS) $(CC_INCLUDES) $(CC_DEFINES) -m32 -finput-charset=UTF-8 -fPIC
 
 all: $(TARGET)
