@@ -39,6 +39,8 @@ $(TARGET): $(OBJECTS) Makefile
 clean:
 	-rm $(TARGET) *.o *.d
 
+deploy:
+	zip oolink.zip MANIFEST.XML oolink.so
 
 ifeq "$(OS)" "WIN"
 INI_EXTENSION=.ini

@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <bundle xmlns="http://v8.1c.ru/8.2/addin/bundle">
-  <component os="Linux" path="AddInNative.so" type="native" arch="i386" />
+  <component os="Linux" path="oolink.so" type="native" arch="i386" />
 </bundle>

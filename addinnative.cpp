@@ -343,40 +343,62 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     switch(lMethodNum)
     {
     case eMethGetContext:
-	try {
-	    __context = ::cppu::bootstrap();
-	    __service = __context->getServiceManager();
-	}
-	catch (Exception &e) {
-        wchar_t* wsMsgBuf;
-        OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-        name = o.pData->buffer;
-        size = mbstowcs(0, name, 0) + 1;
-        wsMsgBuf = new wchar_t[size];
-        memset(wsMsgBuf, 0, size * sizeof(wchar_t));
-        size = mbstowcs(wsMsgBuf, name, size);
-
-        addError(ADDIN_E_VERY_IMPORTANT, L"AddInNativeOO", wsMsgBuf, eGetContextException);
-        delete[] wsMsgBuf;
-        return false;
-	}
-	
-    Any *ctx = new Any(__context);
-
-    wstring res = warp(ctx);
-
-    size_t iActualSize = res.length()+1;
-
-    if (m_iMemory && res.length())
     {
-        if(m_iMemory->AllocMemory((void**)&pvarRetValue, iActualSize * sizeof(WCHAR_T))) {
-            ::convToShortWchar(pvarRetValue->pwstrVal, res.c_str(), iActualSize);
-            pvarRetValue->wstrLen = res.length();
-        }
+    	try {
+    		__context = ::cppu::bootstrap();
+    		__service = __context->getServiceManager();
+    		__factory = Reference<XSingleComponentFactory> (
+    				__service->createInstanceWithContext(
+    						OUString( RTL_CONSTASCII_USTRINGPARAM( "com.sun.star.script.Invocation" ) ),
+    						__context),
+    				UNO_QUERY);
+    	}
+    	catch (Exception &e) {
+    		wchar_t* wsMsgBuf;
+    		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
+    		name = o.pData->buffer;
+    		size = mbstowcs(0, name, 0) + 1;
+    		wsMsgBuf = new wchar_t[size];
+    		memset(wsMsgBuf, 0, size * sizeof(wchar_t));
+    		size = mbstowcs(wsMsgBuf, name, size);
 
+    		addError(ADDIN_E_VERY_IMPORTANT, L"AddInNativeOO", wsMsgBuf, eGetContextException);
+    		delete[] wsMsgBuf;
+    		return false;
+    	}
+
+    	Any *ctx = new Any(__context);
+
+    	wstring res = warp(ctx);
+
+    	size_t iActualSize = res.length()+1;
+
+    	if (m_iMemory && iActualSize > 1)
+    	{
+    		if(m_iMemory->AllocMemory((void**)&(pvarRetValue->pwstrVal), iActualSize * sizeof(WCHAR_T))) {
+    			::convToShortWchar(&(pvarRetValue->pwstrVal), res.c_str(), iActualSize);
+    			pvarRetValue->wstrLen = res.length();
+    			TV_VT(pvarRetValue) = VTYPE_PWSTR;
+    	    	ret = true;
+    		}
+    	}
     }
-
     break;
+
+    case eMethInvoke:
+    	wstring res = L"hi";
+    	int iActualSize = res.length();
+    	if (m_iMemory && res.length())
+    	{
+    		if(m_iMemory->AllocMemory((void**)&pvarRetValue, iActualSize * sizeof(WCHAR_T))) {
+    			::convToShortWchar(&pvarRetValue->pwstrVal, res.c_str(), iActualSize);
+    			pvarRetValue->wstrLen = res.length();
+    			TV_VT(pvarRetValue) = VTYPE_PWSTR;
+    		}
+
+    	}
+    	ret = true;
+    	break;
     }
     return ret; 
 }
