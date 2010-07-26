@@ -21,11 +21,29 @@ using namespace std;
 
 #define BASE_ERRNO     7
 
-static wchar_t *g_PropNames[] = {};
-static wchar_t *g_MethodNames[] = {L"GetContext", L"InvokeMethod"};
+static const wchar_t *g_PropNames[] = {};
+static const wchar_t *g_MethodNames[] = {L"GetContext",
+		L"InvokeMethod",
+		L"CreateStruct",
+		L"CreateSequence",
+		L"SetSequenceValue",
+		L"GetSequenceValue",
+		L"SetProperty",
+		L"GetProperty",
+		L"GetValueType"
+	};
 
-static wchar_t *g_PropNamesRu[] = {};
-static wchar_t *g_MethodNamesRu[] = {L"ПолучитьКонтекст", L"ВызватьМетод"};
+static const wchar_t *g_PropNamesRu[] = {};
+static const wchar_t *g_MethodNamesRu[] = {L"ПолучитьКонтекст",
+		L"ВызватьМетод",
+		L"СоздатьСтруктуру",
+		L"СоздатьПоследовательность",
+		L"УстановитьЗначениеЭлементаПоследовательности",
+		L"ПолучитьЗначениеЭлементаПоследовательности",
+		L"УстановитьЗначениеСвойства",
+		L"ПолучитьЗначениеСвойства",
+		L"ПолучитьТипРезультата"
+	};
 
 static const wchar_t g_kClassNames[] = L"CAddInNativeOO"; //"|OtherClass1|OtherClass2";
 static IAddInDefBase *pAsyncEvent = NULL;
@@ -63,17 +81,6 @@ const WCHAR_T* GetClassNames()
     return names;
 }
 //---------------------------------------------------------------------------//
-#ifndef __linux__
-VOID CALLBACK MyTimerProc(
-        HWND hwnd, // handle of window for timer messages
-        UINT uMsg, // WM_TIMER message
-        UINT idEvent, // timer identifier
-        DWORD dwTime // current system time
-);
-#else
-static void MyTimerProc(int sig);
-#endif //__linux__
-
 // CAddInNativeOO
 //---------------------------------------------------------------------------//
 CAddInNativeOO::CAddInNativeOO()
@@ -107,7 +114,7 @@ void CAddInNativeOO::Done()
 //---------------------------------------------------------------------------//
 bool CAddInNativeOO::RegisterExtensionAs(WCHAR_T** wsExtensionName)
 { 
-    wchar_t *wsExtension = L"AddInOO";
+    const wchar_t *wsExtension = L"AddInOO";
     int iActualSize = ::wcslen(wsExtension) + 1;
     WCHAR_T* dest = 0;
 
@@ -148,7 +155,7 @@ const WCHAR_T* CAddInNativeOO::GetPropName(long lPropNum, long lPropAlias)
     if (lPropNum >= ePropLast)
         return NULL;
 
-    wchar_t *wsCurrentName = NULL;
+    const wchar_t *wsCurrentName = NULL;
     WCHAR_T *wsPropName = NULL;
     int iActualSize = 0;
 
@@ -244,7 +251,7 @@ const WCHAR_T* CAddInNativeOO::GetMethodName(const long lMethodNum, const long l
     if (lMethodNum >= eMethLast)
         return NULL;
 
-    wchar_t *wsCurrentName = NULL;
+    const wchar_t *wsCurrentName = NULL;
     WCHAR_T *wsMethodName = NULL;
     int iActualSize = 0;
 
@@ -295,6 +302,13 @@ bool CAddInNativeOO::GetParamDefValue(const long lMethodNum, const long lParamNu
     { 
     case eMethGetContext:
     case eMethInvoke:
+	case eMethCreateStruct:
+	case eMethCreateSequence:
+	case eMethSetSequenceValue:
+	case eMethGetSequenceValue:
+	case eMethSetProperty:
+	case eMethGetProperty:
+	case eMethGetValueType:
         // There are no parameter values by default 
         break;
     default:
@@ -310,6 +324,13 @@ bool CAddInNativeOO::HasRetVal(const long lMethodNum)
     { 
     case eMethGetContext:
     case eMethInvoke:
+	case eMethCreateStruct:
+	case eMethCreateSequence:
+	case eMethSetSequenceValue:
+	case eMethGetSequenceValue:
+	case eMethSetProperty:
+	case eMethGetProperty:
+	case eMethGetValueType:
         return true;
     default:
         return false;
@@ -334,127 +355,60 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
                 tVariant* pvarRetValue, tVariant* paParams, const long lSizeArray)
 { 
     bool ret = false;
-    FILE *file = 0;
-    char *name = 0;
-    int size = 0;
-    char *mbstr = 0;
-    wchar_t* wsTmp = 0;
-
+    wstring result;
     switch(lMethodNum)
     {
-    case eMethGetContext:
-    {
-    	try {
-    		__context = ::cppu::bootstrap();
-    		__service = __context->getServiceManager();
-    		__factory = Reference<XSingleComponentFactory> (
-    				__service->createInstanceWithContext(
-    						OUString( RTL_CONSTASCII_USTRINGPARAM( "com.sun.star.script.Invocation" ) ),
-    						__context),
-    				UNO_QUERY);
-    	}
-    	catch (Exception &e) {
-    		wchar_t* wsMsgBuf;
-    		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-    		name = o.pData->buffer;
-    		size = mbstowcs(0, name, 0) + 1;
-    		wsMsgBuf = new wchar_t[size];
-    		memset(wsMsgBuf, 0, size * sizeof(wchar_t));
-    		size = mbstowcs(wsMsgBuf, name, size);
-
-    		addError(ADDIN_E_VERY_IMPORTANT, L"AddInNativeOO", wsMsgBuf, eGetContextException);
-    		delete[] wsMsgBuf;
-    		return false;
-    	}
-
-    	Any *ctx = new Any(__context);
-
-    	wstring res = warp(ctx);
-
-    	size_t iActualSize = res.length()+1;
-
-    	if (m_iMemory && iActualSize > 1)
-    	{
-    		if(m_iMemory->AllocMemory((void**)&(pvarRetValue->pwstrVal), iActualSize * sizeof(WCHAR_T))) {
-    			::convToShortWchar(&(pvarRetValue->pwstrVal), res.c_str(), iActualSize);
-    			pvarRetValue->wstrLen = res.length();
-    			TV_VT(pvarRetValue) = VTYPE_PWSTR;
-    	    	ret = true;
+    	case eMethGetContext:
+    		ret = this->getContext(result);
+    		wchar2variant(pvarRetValue, result);
+    		break;
+    	case eMethInvoke:
+    		if(lSizeArray != 3) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
     		}
-    	}
-    }
-    break;
-
-    case eMethInvoke:
-    	wstring res = L"hi";
-    	int iActualSize = res.length();
-    	if (m_iMemory && res.length())
-    	{
-    		if(m_iMemory->AllocMemory((void**)&pvarRetValue, iActualSize * sizeof(WCHAR_T))) {
-    			::convToShortWchar(&pvarRetValue->pwstrVal, res.c_str(), iActualSize);
-    			pvarRetValue->wstrLen = res.length();
-    			TV_VT(pvarRetValue) = VTYPE_PWSTR;
+    		wstring obj;
+    		wstring meth;
+    		wstring args;
+    		wstring retval;
+    		if(!variant2wchar(obj, paParams[0])) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    			return false;
+    		}
+    		if(!variant2wchar(meth, paParams[1])) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (метод)", eGetContextException);
+    			return false;
+    		}
+    		if(!variant2wchar(meth, paParams[2])) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (аргументы)", eGetContextException);
+    			return false;
+    		}
+    		ret = this->callMethod(obj, meth, args, retval);
+    		if(ret) {
+    			ret = wchar2variant(pvarRetValue, retval);
     		}
 
-    	}
-    	ret = true;
-    	break;
+    		break;
+    	case eMethCreateStruct:
+    		break;
+    	case eMethCreateSequence:
+    		break;
+    	case eMethSetSequenceValue:
+    		break;
+    	case eMethGetSequenceValue:
+    		break;
+    	case eMethSetProperty:
+    		break;
+    	case eMethGetProperty:
+    		break;
+    	case eMethGetValueType:
+    		break;
+    	default:
+    		break;
     }
+
     return ret; 
 }
-//---------------------------------------------------------------------------//
-// This code will work only on the client!
-#ifndef __linux__
-VOID CALLBACK MyTimerProc(
-  HWND hwnd,    // handle of window for timer messages
-  UINT uMsg,    // WM_TIMER message
-  UINT idEvent, // timer identifier
-  DWORD dwTime  // current system time
-)
-{
-    if (!pAsyncEvent)
-        return;
-
-    wchar_t *who = L"ComponentNative", *what = L"Timer";
-
-    wchar_t *wstime = new wchar_t[TIME_LEN];
-    if (wstime)
-    {
-        wmemset(wstime, 0, TIME_LEN);
-        ::_ultow(dwTime, wstime, 10);
-        pAsyncEvent->ExternalEvent(who, what, wstime);
-        delete[] wstime;
-    }
-}
-#else
-void MyTimerProc(int sig)
-{
-    if (pAsyncEvent)
-        return;
-
-    WCHAR_T *who = 0, *what = 0, *wdata = 0;
-    wchar_t *data = 0;
-    time_t dwTime = time(NULL);
-
-    data = new wchar_t[TIME_LEN];
-    
-    if (data)
-    {
-        wmemset(data, 0, TIME_LEN);
-        swprintf(data, TIME_LEN, L"%ul", dwTime);
-        ::convToShortWchar(&who, L"ComponentNative");
-        ::convToShortWchar(&what, L"Timer");
-        ::convToShortWchar(&wdata, data);
-
-        pAsyncEvent->ExternalEvent(who, what, wdata);
-
-        delete[] who;
-        delete[] what;
-        delete[] wdata;
-        delete[] data;
-    }
-}
-#endif
 //---------------------------------------------------------------------------//
 void CAddInNativeOO::SetLocale(const WCHAR_T* loc)
 {
@@ -466,6 +420,100 @@ void CAddInNativeOO::SetLocale(const WCHAR_T* loc)
     //setlocale(LC_ALL, char_locale);
 #endif
 }
+
+bool CAddInNativeOO::wchar2variant(tVariant *var, const wstring &src)
+{
+	if(m_iMemory->AllocMemory((void**)&(var->pwstrVal), src.length() * sizeof(WCHAR_T))) {
+		convToShortWchar(&var->pwstrVal, src.c_str(), src.length());
+		var->wstrLen = src.length();
+		TV_VT(var) = VTYPE_PWSTR;
+	}
+}
+
+bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
+{
+	dst.clear();
+	switch(TV_VT(var)) {
+	case VTYPE_PWSTR:
+	case VTYPE_BLOB:
+		if(v2w(dst, var) == false) {
+			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно конвертировать значение", eGetContextException);
+			return false;
+		}
+	case VTYPE_BOOL:
+		dst = warp(new Any(TV_BOOL(var)));
+		break;
+	case VTYPE_DATE:
+		dst = warp(new Any(TV_DATE(var)));
+		break;
+	case VTYPE_EMPTY:
+		dst = warp(new Any);
+		break;
+	case VTYPE_ERROR:
+		return false;
+	case VTYPE_I1:
+		dst = warp(new Any((sal_Int8)TV_I1(var)));
+		break;
+	case VTYPE_I2:
+		dst = warp(new Any((sal_Int16)TV_I2(var)));
+		break;
+	case VTYPE_I4:
+		dst = warp(new Any((sal_Int32)TV_I4(var)));
+		break;
+	case VTYPE_I8:
+		dst = warp(new Any((sal_Int64)TV_I8(var)));
+		break;
+	case VTYPE_INT:
+		dst = warp(new Any((sal_Int32)TV_INT(var)));
+		break;
+	case VTYPE_NULL:
+	case VTYPE_PSTR:
+	case VTYPE_R4:
+		dst = warp(new Any(TV_R4(var)));
+		break;
+	case VTYPE_R8:
+		dst = warp(new Any(TV_R8(var)));
+		break;
+	case VTYPE_STR_BLOB:
+	case VTYPE_UI1:
+		dst = warp(new Any((sal_uInt8)TV_UI1(var)));
+		break;
+	case VTYPE_UI2:
+		dst = warp(new Any((sal_uInt32)TV_UI2(var)));
+		break;
+	case VTYPE_UI4:
+		dst = warp(new Any((sal_uInt32)TV_UI4(var)));
+		break;
+	case VTYPE_UI8:
+		dst = warp(new Any((sal_uInt64)TV_UI8(var)));
+		break;
+	case VTYPE_UINT:
+		dst = warp(new Any((sal_uInt32)TV_UINT(var)));
+		break;
+	case VTYPE_VARIANT:
+		break;
+
+	}
+}
+
+bool CAddInNativeOO::w2v(tVariant *var, const wstring &src)
+{
+
+}
+
+bool CAddInNativeOO::v2w(wstring &var, const tVariant *src)
+{
+	if(TV_VT(src) == VTYPE_PWSTR) {
+		WCHAR_T * ptr = src->pwstrVal;
+		for(int i = 0; i < src->wstrLen ; ++i)
+			var.push_back(static_cast<wchar_t>(src->pwstrVal[i]));
+
+		return true;
+	}
+
+	return false;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // LocaleBase
 //---------------------------------------------------------------------------//
@@ -492,7 +540,7 @@ void CAddInNativeOO::addError(uint32_t wcode, const wchar_t* source,
     }
 }
 //---------------------------------------------------------------------------//
-long CAddInNativeOO::findName(wchar_t* names[], const wchar_t* name, 
+long CAddInNativeOO::findName(const wchar_t* names[], const wchar_t* name,
                          const uint32_t size) const
 {
     long ret = -1;

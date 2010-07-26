@@ -10,6 +10,7 @@ TARGET=oolink.so
 SOURCES=addinnative.cpp \
 	dllmain.cpp \
 	warpcontainer.cpp \
+	OOTest.cpp \
 	stdafx.cpp
 
 LIBS=pthread

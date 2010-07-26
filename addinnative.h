@@ -4,31 +4,10 @@
 #include "ComponentBase.h"
 #include "AddInDefBase.h"
 #include "IMemoryManager.h"
-#include "warpcontainer.h"
-
-#include <cppuhelper/bootstrap.hxx>
-#include <com/sun/star/bridge/XUnoUrlResolver.hpp>
-#include <com/sun/star/lang/XMultiServiceFactory.hpp>
-#include <com/sun/star/lang/XMultiComponentFactory.hpp>
-#include <com/sun/star/lang/XSingleComponentFactory.hpp>
-#include <com/sun/star/frame/XComponentLoader.hpp>
-#include <com/sun/star/reflection/XIdlReflection.hpp>
-#include <com/sun/star/reflection/XIdlClass.hpp>
-#include <com/sun/star/reflection/XIdlArray.hpp>
-#include <com/sun/star/reflection/XIdlMember.hpp>
-#include <com/sun/star/reflection/XIdlMethod.hpp>
-
-using namespace com::sun::star::uno;
-using namespace com::sun::star::lang;
-using namespace com::sun::star::bridge;
-using namespace com::sun::star::frame;
-using namespace com::sun::star::reflection;
-using namespace rtl;
-using namespace cppu;
-
+#include "OOTest.h"
 ///////////////////////////////////////////////////////////////////////////////
 // class CAddInNativeOO
-class CAddInNativeOO : public IComponentBase, public Warp
+class CAddInNativeOO : public IComponentBase, public OOTest
 {
 public:
     enum Props
@@ -40,6 +19,13 @@ public:
     {
         eMethGetContext = 0,
         eMethInvoke,
+        eMethCreateStruct,
+        eMethCreateSequence,
+        eMethSetSequenceValue,
+        eMethGetSequenceValue,
+        eMethSetProperty,
+        eMethGetProperty,
+        eMethGetValueType,
         eMethLast      // Always last
     };
     
@@ -80,9 +66,13 @@ public:
                 tVariant* pvarRetValue, tVariant* paParams, const long lSizeArray);
     // LocaleBase
     virtual void ADDIN_API SetLocale(const WCHAR_T* loc);
-    
+protected:
+    bool wchar2variant(tVariant *var, const wstring &src);
+    bool variant2wchar(wstring &dst, const tVariant *var);
+	bool w2v(tVariant *var, const wstring &src);
+	bool v2w(wstring &var, const tVariant *src);
 private:
-    long findName(wchar_t* names[], const wchar_t* name, const uint32_t size) const;
+    long findName(const wchar_t* names[], const wchar_t* name, const uint32_t size) const;
     void addError(uint32_t wcode, const wchar_t* source, 
                     const wchar_t* descriptor, long code);
     // Attributes
@@ -91,10 +81,6 @@ private:
 
     bool                m_boolEnabled;
     uint32_t            m_uiTimer;
-
-    Reference< XComponentContext > __context;
-    Reference< XMultiComponentFactory > __service;
-    Reference< XSingleComponentFactory > __factory;
 };
 
 #endif //__ADDINNATIVE_H__
