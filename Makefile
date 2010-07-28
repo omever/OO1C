@@ -7,10 +7,10 @@ include $(SETTINGS)/dk.mk
 
 TARGET=oolink.so
 
-SOURCES=addinnative.cpp \
-	dllmain.cpp \
+SOURCES=dllmain.cpp \
 	warpcontainer.cpp \
 	OOTest.cpp \
+	addinnative.cpp \
 	stdafx.cpp
 
 LIBS=pthread

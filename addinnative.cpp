@@ -15,6 +15,12 @@
 #include "addinnative.h"
 #include <string>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <errno.h>
+#include <iostream>
+
 using namespace std;
 
 #define TIME_LEN 34
@@ -83,10 +89,12 @@ const WCHAR_T* GetClassNames()
 //---------------------------------------------------------------------------//
 // CAddInNativeOO
 //---------------------------------------------------------------------------//
+#define UNIX_PATH_MAX   108
 CAddInNativeOO::CAddInNativeOO()
 {
     m_iMemory = 0;
     m_iConnect = 0;
+    log << "Starting" << endl;
 }
 //---------------------------------------------------------------------------//
 CAddInNativeOO::~CAddInNativeOO()
@@ -283,9 +291,23 @@ long CAddInNativeOO::GetNParams(const long lMethodNum)
     switch(lMethodNum)
     { 
     case eMethGetContext:
-        return 0;
+    	return 0;
     case eMethInvoke:
-        return 2;
+    	return 3;
+	case eMethCreateStruct:
+		return 1;
+	case eMethCreateSequence:
+		return 0;
+	case eMethSetSequenceValue:
+		return 3;
+	case eMethGetSequenceValue:
+		return 2;
+	case eMethSetProperty:
+		return 3;
+	case eMethGetProperty:
+		return 2;
+	case eMethGetValueType:
+		return 1;
     default:
         return 0;
     }
@@ -326,12 +348,13 @@ bool CAddInNativeOO::HasRetVal(const long lMethodNum)
     case eMethInvoke:
 	case eMethCreateStruct:
 	case eMethCreateSequence:
-	case eMethSetSequenceValue:
 	case eMethGetSequenceValue:
-	case eMethSetProperty:
 	case eMethGetProperty:
 	case eMethGetValueType:
         return true;
+	case eMethSetSequenceValue:
+	case eMethSetProperty:
+		return false;
     default:
         return false;
     }
@@ -344,6 +367,70 @@ bool CAddInNativeOO::CallAsProc(const long lMethodNum,
 { 
     switch(lMethodNum)
     { 
+	case eMethSetSequenceValue:
+		if(lSizeArray != 3) {
+			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+			return false;
+		}
+		{
+			wstring obj;
+			wstring idx;
+			sal_Int64 i_idx;
+			wstring value;
+			if(!variant2wchar(obj, &paParams[0])) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+				return false;
+			}
+			if(!variant2wchar(idx, &paParams[1])) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (индекс)", eGetContextException);
+				return false;
+			} else {
+				Any *a = unwarp(idx);
+				if(a == NULL) {
+					addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (индекс)", eGetContextException);
+					return false;
+				}
+				*a >>= i_idx;
+			}
+			if(!variant2wchar(value, &paParams[2])) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (значение)", eGetContextException);
+				return false;
+			}
+			if(!this->setSequenceValue(obj, i_idx, value)) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно создать структуру", eGetContextException);
+				return false;
+			}
+			return true;
+		}
+		break;
+	case eMethSetProperty:
+		if(lSizeArray != 3) {
+			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+			return false;
+		}
+		{
+			wstring obj;
+			wstring idx;
+			wstring value;
+			if(!variant2wchar(obj, &paParams[0])) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+				return false;
+			}
+			if(!variant2wchar(idx, &paParams[1])) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (индекс)", eGetContextException);
+				return false;
+			}
+			if(!variant2wchar(value, &paParams[2])) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (значение)", eGetContextException);
+				return false;
+			}
+			if(!this->setProperty(obj, idx, value)) {
+				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно создать структуру", eGetContextException);
+				return false;
+			}
+			return true;
+		}
+		break;
     default:
         return false;
     }
@@ -361,47 +448,143 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     	case eMethGetContext:
     		ret = this->getContext(result);
     		wchar2variant(pvarRetValue, result);
+    		log << "hi there" << endl;
     		break;
     	case eMethInvoke:
     		if(lSizeArray != 3) {
     			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
     			return false;
     		}
-    		wstring obj;
-    		wstring meth;
-    		wstring args;
-    		wstring retval;
-    		if(!variant2wchar(obj, paParams[0])) {
-    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
-    			return false;
+    		{
+    			wstring obj;
+    			wstring meth;
+    			wstring args;
+    			wstring retval;
+    			if(!variant2wchar(obj, &paParams[0])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    				return false;
+    			}
+    			if(!v2w(meth, &paParams[1])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (метод)", eGetContextException);
+    				return false;
+    			}
+    			if(!variant2wchar(args, &paParams[2])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (аргументы)", eGetContextException);
+    				return false;
+    			}
+    			log << "Obj: " << obj << "; meth: " << meth << "; args: " << args << endl;
+    			ret = this->callMethod(obj, meth, args, retval);
+    			if(ret) {
+    				ret = wchar2variant(pvarRetValue, retval);
+    			}
     		}
-    		if(!variant2wchar(meth, paParams[1])) {
-    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (метод)", eGetContextException);
-    			return false;
-    		}
-    		if(!variant2wchar(meth, paParams[2])) {
-    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (аргументы)", eGetContextException);
-    			return false;
-    		}
-    		ret = this->callMethod(obj, meth, args, retval);
-    		if(ret) {
-    			ret = wchar2variant(pvarRetValue, retval);
-    		}
-
     		break;
     	case eMethCreateStruct:
+    		if(lSizeArray != 1) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
+    		}
+    		{
+    			wstring obj;
+    			wstring result;
+    			if(!v2w(obj, &paParams[0])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    				return false;
+    			}
+    			if(!this->createStruct(obj, result)) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно создать структуру", eGetContextException);
+    				return false;
+    			}
+    			return wchar2variant(pvarRetValue, result);
+    		}
     		break;
     	case eMethCreateSequence:
-    		break;
-    	case eMethSetSequenceValue:
+    		if(lSizeArray != 0) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
+    		}
+    		{
+    			wstring result;
+    			if(!this->createSequence(result, 0)) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно создать последовательность", eGetContextException);
+    				return false;
+    			}
+    			return wchar2variant(pvarRetValue, result);
+    		}
     		break;
     	case eMethGetSequenceValue:
-    		break;
-    	case eMethSetProperty:
+    		if(lSizeArray != 2) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
+    		}
+    		{
+    			wstring obj;
+    			wstring idx;
+    			sal_Int64 i_idx;
+    			wstring result;
+    			if(!variant2wchar(obj, &paParams[0])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    				return false;
+    			}
+    			if(!variant2wchar(idx, &paParams[1])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (индекс)", eGetContextException);
+    				return false;
+    			} else {
+    				Any *a = unwarp(idx);
+    				if(a == NULL) {
+    					addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (индекс)", eGetContextException);
+    					return false;
+    				}
+    				*a >>= i_idx;
+    			}
+    			if(!this->getSequenceValue(obj, (size_t)i_idx, result)) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Получить значение", eGetContextException);
+    				return false;
+    			}
+    			return wchar2variant(pvarRetValue, result);
+    		}
     		break;
     	case eMethGetProperty:
+    		if(lSizeArray != 2) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
+    		}
+    		{
+    			wstring obj;
+    			wstring idx;
+    			wstring result;
+    			if(!variant2wchar(obj, &paParams[0])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    				return false;
+    			}
+    			if(!variant2wchar(idx, &paParams[1])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (индекс)", eGetContextException);
+    				return false;
+    			}
+    			if(!this->getProperty(obj, idx, result)) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Получить значение", eGetContextException);
+    				return false;
+    			}
+    			return wchar2variant(pvarRetValue, result);
+    		}
     		break;
     	case eMethGetValueType:
+    		if(lSizeArray != 1) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
+    		}
+    		{
+    			wstring obj;
+    			wstring result;
+    			if(!variant2wchar(obj, &paParams[0])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    				return false;
+    			}
+
+    			Any *a = unwarp(obj);
+    			result = o2w(a->getValueTypeName());
+    			return wchar2variant(pvarRetValue, result);
+    		}
     		break;
     	default:
     		break;
@@ -436,10 +619,12 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 	switch(TV_VT(var)) {
 	case VTYPE_PWSTR:
 	case VTYPE_BLOB:
+		log << "Blob/pwstr" << endl;
 		if(v2w(dst, var) == false) {
 			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно конвертировать значение", eGetContextException);
 			return false;
 		}
+		break;
 	case VTYPE_BOOL:
 		dst = warp(new Any(TV_BOOL(var)));
 		break;
@@ -467,7 +652,11 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 		dst = warp(new Any((sal_Int32)TV_INT(var)));
 		break;
 	case VTYPE_NULL:
+		dst = warp(new Any());
+		break;
 	case VTYPE_PSTR:
+		log << "pstr" << endl;
+		break;
 	case VTYPE_R4:
 		dst = warp(new Any(TV_R4(var)));
 		break;
@@ -475,6 +664,8 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 		dst = warp(new Any(TV_R8(var)));
 		break;
 	case VTYPE_STR_BLOB:
+		log << "str_blob" << endl;
+		break;
 	case VTYPE_UI1:
 		dst = warp(new Any((sal_uInt8)TV_UI1(var)));
 		break;
@@ -491,6 +682,7 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 		dst = warp(new Any((sal_uInt32)TV_UINT(var)));
 		break;
 	case VTYPE_VARIANT:
+		log << "variant" << endl;
 		break;
 
 	}
@@ -526,6 +718,7 @@ bool CAddInNativeOO::setMemManager(void* mem)
 void CAddInNativeOO::addError(uint32_t wcode, const wchar_t* source, 
                         const wchar_t* descriptor, long code)
 {
+	log << "addError " << source << ": " << descriptor << endl;
     if (m_iConnect)
     {
         WCHAR_T *err = 0;

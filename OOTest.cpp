@@ -22,6 +22,7 @@ using namespace com::sun::star::beans;
 OOTest::OOTest()
 	: Warp()
 {
+	log.open("/log/main", ios::app);
 	// TODO Auto-generated constructor stub
 
 }
@@ -47,7 +48,7 @@ bool OOTest::getContext(wstring &result)
 				UNO_QUERY);
 	}
 	catch (Exception &e) {
-		cerr << "Exception caught " << e.Message.pData << endl;
+		log << "Exception caught " << e.Message.pData << endl;
 		return false;
 	}
 
@@ -67,63 +68,74 @@ bool OOTest::callMethod(const wstring &ref, const wstring &meth, const wstring &
 
 	try {
 		if(!__factory.is()) {
-			cerr << "Error quering factory" << endl;
+			log << "Error quering factory" << endl;
 			return false;
 		}
+
 		Reference<XInvocation2> inv (__factory->createInstanceWithArguments(parg), UNO_QUERY);
-		Sequence<OUString> list = inv->getMemberNames();
-		int len = list.getLength();
+		if(!inv.is()) {
+			log << "Error quering invocation data " << ref << endl;
+			return false;
+		}
+
 		InvocationInfo info = inv->getInfoForName(w2o(meth), true);
-		wcout << o2w(info.aName) << endl;
-		wcout << o2w(info.aType.getTypeName()) << endl;
-		wcout << "Executing method " << meth << endl;
-		Sequence<Any> par1(info.aParamTypes.getLength());
+
+		log << o2w(info.aName) << endl;
+		log << o2w(info.aType.getTypeName()) << endl;
+		log << "Executing method " << meth << endl;
+
 		size_t out_count = 0;
+
 		for(int i = 0; i < info.aParamModes.getLength() ; ++i)
 			if(info.aParamModes[i] != ParamMode_IN)
 				++out_count;
+
+		Sequence<Any> inParam(info.aParamModes.getLength());
 		Sequence<Any> aoutParam(out_count);
 		Sequence<short> outParam(out_count);
+
 		out_count = 0;
 		for(int i = 0; i < info.aParamModes.getLength() ; ++i)
 			if(info.aParamModes[i] != ParamMode_IN)
 				outParam[out_count++] = i;
 
-		if(info.aParamTypes.getLength() != arg.size())
-			throw new exception();
+		Any * pars = unwarp(arg);
+		Sequence<Any> inParams;
 
-		for(int i = 0 ; i < info.aParamTypes.getLength() ; ++i) {
-			Any *an = unwarp(arg[i]);
-			if(an == NULL) {
-				cout << "String arg" << endl;
-				par1[i] = Any(w2o(arg[i]));
-			} else {
-				wcout << L"Object arg " << arg[i] << hex << an << endl;
-				par1[i] = (*an);
+		
+		if(pars != NULL) {
+			log << "Params type: " << o2w(pars->getValueTypeName()) << endl;
+			*pars >>= inParams;
+			log << "      count: " << inParams.getLength() << endl;
+			if(inParam.getLength() < inParams.getLength())
+			    inParam.realloc(inParams.getLength());
+			    
+			for(int i = 0; i < inParams.getLength(); ++i) {
+			    inParam[i] = inParams[i];
+			    log << "Param: " << o2w(inParam[i].getValueTypeName()) << endl;
 			}
 		}
 
 		Any *res = new Any;
-		if(info.aType.getTypeClass() == TypeClass_ANY) {
-			*res = inv->invoke(w2o(meth), par1, outParam, aoutParam);
-		} else {
-			*res = inv->invoke(w2o(meth), par1, outParam, aoutParam);
-		}
+		*res = inv->invoke(w2o(meth), inParams, outParam, aoutParam);
 		result = warp(res);
 		return true;
 	}
 	catch(IllegalArgumentException &e) {
-		cerr << "Illegal argument exception" << endl;
+		log << "Illegal argument exception" << endl;
+		log << o2w(e.Message) << endl;
 	}
 	catch(CannotConvertException &e) {
-		cerr << "Can not convert arguments exception" << endl;
+		log << "Can not convert arguments exception" << endl;
+		log << o2w(e.Message) << endl;
 	}
 	catch(InvocationTargetException &e) {
-		cerr << "Invocation target exception" << endl;
+		log << "Invocation target exception" << endl;
+		log << o2w(e.Message) << endl;
 	}
 	catch(Exception &e) {
 		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-		cerr << "Exception caught: " << o.pData->buffer << endl;
+		log << "Exception caught: " << o.pData->buffer << endl;
 	}
 	return true;
 }
@@ -137,23 +149,23 @@ bool OOTest::dumpMethodNames(const wstring &ref, vector<wstring> &methods)
 	Sequence<Any> parg(1);
 	parg[0] = *a;
 
-	wcout << "Quering for " << o2w(a->getValueTypeName()) << endl;
+	log << "Quering for " << o2w(a->getValueTypeName()) << endl;
 	try {
 		if(!__factory.is()) {
-			cerr << "Error quering factory" << endl;
+			log << "Error quering factory" << endl;
 			return false;
 		}
 		Reference<XInvocation2> inv (__factory->createInstanceWithArguments(parg), UNO_QUERY);
 		if(!inv.is()) {
-			cerr << "Error querying Invocation for info" << endl;
-			cerr << "Falling back to Introspection" << endl;
+			log << "Error querying Invocation for info" << endl;
+			log << "Falling back to Introspection" << endl;
 			if(!__introspection.is()) {
-				cerr << "Error quering introspection" << endl;
+				log << "Error quering introspection" << endl;
 				return false;
 			}
 			Reference<XIntrospectionAccess> inacc (__introspection->inspect(*a), UNO_QUERY);
 			if(!inacc.is()) {
-				cerr << "Error quering introspection info" << endl;
+				log << "Error quering introspection info" << endl;
 				return false;
 			}
 			Sequence<Property> plist = inacc->getProperties(PropertyConcept::ALL);
@@ -169,17 +181,17 @@ bool OOTest::dumpMethodNames(const wstring &ref, vector<wstring> &methods)
 			methods.push_back(o2w(list[i]));
 	}
 	catch(IllegalArgumentException &e) {
-		cerr << "Illegal argument exception" << endl;
+		log << "Illegal argument exception" << endl;
 	}
 	catch(CannotConvertException &e) {
-		cerr << "Can not convert arguments exception" << endl;
+		log << "Can not convert arguments exception" << endl;
 	}
 	catch(InvocationTargetException &e) {
-		cerr << "Invocation target exception" << endl;
+		log << "Invocation target exception" << endl;
 	}
 	catch(Exception &e) {
 		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-		cerr << "Exception caught: " << o.pData->buffer << endl;
+		log << "Exception caught: " << o.pData->buffer << endl;
 	}
 	return true;
 
@@ -196,23 +208,23 @@ bool OOTest::dumpAttributeNames(const wstring &ref, vector<wstring> &attributes)
 
 	try {
 		if(!__factory.is()) {
-			cerr << "Error quering factory" << endl;
+			log << "Error quering factory" << endl;
 			return false;
 		}
 		Reference<XInvocation2> inv (__factory->createInstanceWithArguments(parg), UNO_QUERY);
 	}
 	catch(IllegalArgumentException &e) {
-		cerr << "Illegal argument exception" << endl;
+		log << "Illegal argument exception" << endl;
 	}
 	catch(CannotConvertException &e) {
-		cerr << "Can not convert arguments exception" << endl;
+		log << "Can not convert arguments exception" << endl;
 	}
 	catch(InvocationTargetException &e) {
-		cerr << "Invocation target exception" << endl;
+		log << "Invocation target exception" << endl;
 	}
 	catch(Exception &e) {
 		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-		cerr << "Exception caught: " << o.pData->buffer << endl;
+		log << "Exception caught: " << o.pData->buffer << endl;
 	}
 	return true;
 }
@@ -221,7 +233,7 @@ bool OOTest::createStruct(const wstring &id, wstring &result)
 {
 	Reference<XIdlReflection> iref (__service->createInstanceWithContext(w2o(L"com.sun.star.reflection.CoreReflection"), __context), UNO_QUERY);
 	if(! iref.is()) {
-		cerr << "Unable to request reflection" << endl;
+		log << "Unable to request reflection" << endl;
 		return false;
 	}
 
@@ -267,6 +279,23 @@ bool OOTest::setSequenceValue(const wstring &sequence, const size_t elem, const 
 	else
 		_sequence[elem] = *anyvalue;
 
+	*a <<= _sequence;
+	return true;
+}
+
+bool OOTest::getSequenceValue(const wstring &sequence, const size_t elem, wstring &data)
+{
+	Any *a = unwarp(sequence);
+	if(a == NULL || a->getValueTypeClass() != TypeClass_SEQUENCE)
+		return false;
+
+	Sequence<Any> _sequence;
+	*a >>= _sequence;
+	if(_sequence.getLength() <= elem)
+		return false;
+
+	Any *b = new Any(_sequence[elem]);
+	data = warp(b);
 	return true;
 }
 
@@ -281,7 +310,7 @@ bool OOTest::setProperty(const wstring & property, const wstring & name, const w
 
 	try {
 		if(!__factory.is()) {
-			cerr << "Error quering factory" << endl;
+			log << "Error quering factory" << endl;
 			return false;
 		}
 
@@ -289,7 +318,7 @@ bool OOTest::setProperty(const wstring & property, const wstring & name, const w
 
 		Reference<XInvocation2> inv (__factory->createInstanceWithArguments(parg), UNO_QUERY);
 		if(!inv->hasProperty(uname)) {
-			cerr << "No such property" << endl;
+			log << "No such property" << endl;
 			return false;
 		}
 
@@ -301,17 +330,17 @@ bool OOTest::setProperty(const wstring & property, const wstring & name, const w
 	}
 
 	catch(IllegalArgumentException &e) {
-		cerr << "Illegal argument exception" << endl;
+		log << "Illegal argument exception" << endl;
 	}
 	catch(CannotConvertException &e) {
-		cerr << "Can not convert arguments exception" << endl;
+		log << "Can not convert arguments exception" << endl;
 	}
 	catch(InvocationTargetException &e) {
-		cerr << "Invocation target exception" << endl;
+		log << "Invocation target exception" << endl;
 	}
 	catch(Exception &e) {
 		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-		cerr << "Exception caught: " << o.pData->buffer << endl;
+		log << "Exception caught: " << o.pData->buffer << endl;
 	}
 	return true;
 }
@@ -327,7 +356,7 @@ bool OOTest::getProperty(const wstring & property, const wstring & name, wstring
 
 	try {
 		if(!__factory.is()) {
-			cerr << "Error quering factory" << endl;
+			log << "Error quering factory" << endl;
 			return false;
 		}
 
@@ -335,7 +364,7 @@ bool OOTest::getProperty(const wstring & property, const wstring & name, wstring
 
 		Reference<XInvocation2> inv (__factory->createInstanceWithArguments(parg), UNO_QUERY);
 		if(!inv->hasProperty(uname)) {
-			cerr << "No such property" << endl;
+			log << "No such property" << endl;
 			return false;
 		}
 
@@ -346,17 +375,17 @@ bool OOTest::getProperty(const wstring & property, const wstring & name, wstring
 	}
 
 	catch(IllegalArgumentException &e) {
-		cerr << "Illegal argument exception" << endl;
+		log << "Illegal argument exception" << endl;
 	}
 	catch(CannotConvertException &e) {
-		cerr << "Can not convert arguments exception" << endl;
+		log << "Can not convert arguments exception" << endl;
 	}
 	catch(InvocationTargetException &e) {
-		cerr << "Invocation target exception" << endl;
+		log << "Invocation target exception" << endl;
 	}
 	catch(Exception &e) {
 		OString o = OUStringToOString( e.Message, RTL_TEXTENCODING_ASCII_US );
-		cerr << "Exception caught: " << o.pData->buffer << endl;
+		log << "Exception caught: " << o.pData->buffer << endl;
 	}
 	return false;
 }

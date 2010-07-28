@@ -9,6 +9,7 @@
 #define OOTEST_H_
 
 #include <string>
+#include <fstream>
 #include "warpcontainer.h"
 
 #include <com/sun/star/lang/XSingleServiceFactory.hdl>
@@ -36,6 +37,7 @@ public:
 	bool getValueType(const wstring &any, wstring &type);
 	static OUString w2o(const wstring &src);
 	static wstring o2w(const OUString &src);
+	wofstream log;
 private:
     Reference< XComponentContext > __context;
     Reference< XMultiComponentFactory > __service;
