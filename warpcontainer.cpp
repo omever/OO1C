@@ -13,9 +13,16 @@ Warp::Warp()
 
 Warp::~Warp()
 {
+	cleanup();
+}
+
+void Warp::cleanup()
+{
 	std::vector<Any *>::iterator i, iend = __any.end();
 	for(i = __any.begin(); i != iend ; ++i)
 		delete *i;
+
+	__any.clear();
 }
 
 wstring Warp::warp(Any *a)
@@ -40,8 +47,6 @@ Any * Warp::unwarp(wstring str)
     wstring atype(str.substr(5, s1 - 5));
     wstring addr(str.substr(s1+1));
 
-    wcout << atype << endl;
-    wcout << addr << endl;
     wstringstream s;
     s << addr;
 

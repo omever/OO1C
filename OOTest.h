@@ -9,6 +9,7 @@
 #define OOTEST_H_
 
 #include <string>
+#include <sstream>
 #include <fstream>
 #include "warpcontainer.h"
 
@@ -35,14 +36,20 @@ public:
 	bool setProperty(const wstring &property, const wstring &name, const wstring &value);
 	bool getProperty(const wstring &property, const wstring &name, wstring &value);
 	bool getValueType(const wstring &any, wstring &type);
+	bool cleanupCache();
+	bool getLogBuffer(wstring &dest);
 	static OUString w2o(const wstring &src);
 	static wstring o2w(const OUString &src);
-	wofstream log;
+protected:
+	void clearLogBuffer();
+	wstringstream log;
+//	wofstream log;
 private:
     Reference< XComponentContext > __context;
     Reference< XMultiComponentFactory > __service;
     Reference< XSingleServiceFactory > __factory;
     Reference< XIntrospection > __introspection;
+    unsigned int __cmd_counter;
 };
 
 #endif /* OOTEST_H_ */

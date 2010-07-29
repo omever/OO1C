@@ -36,7 +36,10 @@ static const wchar_t *g_MethodNames[] = {L"GetContext",
 		L"GetSequenceValue",
 		L"SetProperty",
 		L"GetProperty",
-		L"GetValueType"
+		L"GetValueType",
+		L"CleanupCache",
+		L"GetLog",
+		L"ShowSimpleValue"
 	};
 
 static const wchar_t *g_PropNamesRu[] = {};
@@ -48,7 +51,10 @@ static const wchar_t *g_MethodNamesRu[] = {L"ПолучитьКонтекст",
 		L"ПолучитьЗначениеЭлементаПоследовательности",
 		L"УстановитьЗначениеСвойства",
 		L"ПолучитьЗначениеСвойства",
-		L"ПолучитьТипРезультата"
+		L"ПолучитьТипРезультата",
+		L"ОчиститьКэш",
+		L"ПолучитьЖурнал",
+		L"ОтобразитьПростоеЗначение"
 	};
 
 static const wchar_t g_kClassNames[] = L"CAddInNativeOO"; //"|OtherClass1|OtherClass2";
@@ -94,7 +100,7 @@ CAddInNativeOO::CAddInNativeOO()
 {
     m_iMemory = 0;
     m_iConnect = 0;
-    log << "Starting" << endl;
+    log << L"Starting" << endl;
 }
 //---------------------------------------------------------------------------//
 CAddInNativeOO::~CAddInNativeOO()
@@ -308,6 +314,12 @@ long CAddInNativeOO::GetNParams(const long lMethodNum)
 		return 2;
 	case eMethGetValueType:
 		return 1;
+	case eMethCleanup:
+		return 0;
+	case eMethGetLog:
+		return 0;
+	case eMethShowValue:
+		return 1;
     default:
         return 0;
     }
@@ -331,6 +343,9 @@ bool CAddInNativeOO::GetParamDefValue(const long lMethodNum, const long lParamNu
 	case eMethSetProperty:
 	case eMethGetProperty:
 	case eMethGetValueType:
+	case eMethCleanup:
+	case eMethGetLog:
+	case eMethShowValue:
         // There are no parameter values by default 
         break;
     default:
@@ -351,9 +366,12 @@ bool CAddInNativeOO::HasRetVal(const long lMethodNum)
 	case eMethGetSequenceValue:
 	case eMethGetProperty:
 	case eMethGetValueType:
+	case eMethGetLog:
+	case eMethShowValue:
         return true;
 	case eMethSetSequenceValue:
 	case eMethSetProperty:
+	case eMethCleanup:
 		return false;
     default:
         return false;
@@ -365,6 +383,7 @@ bool CAddInNativeOO::HasRetVal(const long lMethodNum)
 bool CAddInNativeOO::CallAsProc(const long lMethodNum,
                     tVariant* paParams, const long lSizeArray)
 { 
+	log << L"Proc call " << endl;
     switch(lMethodNum)
     { 
 	case eMethSetSequenceValue:
@@ -431,6 +450,9 @@ bool CAddInNativeOO::CallAsProc(const long lMethodNum,
 			return true;
 		}
 		break;
+	case eMethCleanup:
+		return this->cleanupCache();
+		break;
     default:
         return false;
     }
@@ -441,6 +463,7 @@ bool CAddInNativeOO::CallAsProc(const long lMethodNum,
 bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
                 tVariant* pvarRetValue, tVariant* paParams, const long lSizeArray)
 { 
+	log << L"Func call " << endl;
     bool ret = false;
     wstring result;
     switch(lMethodNum)
@@ -448,7 +471,7 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     	case eMethGetContext:
     		ret = this->getContext(result);
     		wchar2variant(pvarRetValue, result);
-    		log << "hi there" << endl;
+    		log << L"hi there" << endl;
     		break;
     	case eMethInvoke:
     		if(lSizeArray != 3) {
@@ -472,7 +495,7 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (аргументы)", eGetContextException);
     				return false;
     			}
-    			log << "Obj: " << obj << "; meth: " << meth << "; args: " << args << endl;
+    			log << L"Obj: " << obj << L"; meth: " << meth << L"; args: " << args << endl;
     			ret = this->callMethod(obj, meth, args, retval);
     			if(ret) {
     				ret = wchar2variant(pvarRetValue, retval);
@@ -586,6 +609,30 @@ bool CAddInNativeOO::CallAsFunc(const long lMethodNum,
     			return wchar2variant(pvarRetValue, result);
     		}
     		break;
+    	case eMethGetLog: {
+    			wstring result;
+    			getLogBuffer(result);
+
+    			return w2v(pvarRetValue, result);
+        		break;
+    	}
+    	case eMethShowValue:
+    		if(lSizeArray != 1) {
+    			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Неверное количество параметров", eGetContextException);
+    			return false;
+    		}
+    		{
+    			wstring obj;
+    			wstring result;
+    			if(!variant2wchar(obj, &paParams[0])) {
+    				addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Некорректные параметы (объект)", eGetContextException);
+    				return false;
+    			}
+
+    			Any *a = unwarp(obj);
+    			return simpleAny2Variant(pvarRetValue, *a);
+    		}
+    		break;
     	default:
     		break;
     }
@@ -606,11 +653,7 @@ void CAddInNativeOO::SetLocale(const WCHAR_T* loc)
 
 bool CAddInNativeOO::wchar2variant(tVariant *var, const wstring &src)
 {
-	if(m_iMemory->AllocMemory((void**)&(var->pwstrVal), src.length() * sizeof(WCHAR_T))) {
-		convToShortWchar(&var->pwstrVal, src.c_str(), src.length());
-		var->wstrLen = src.length();
-		TV_VT(var) = VTYPE_PWSTR;
-	}
+	return w2v(var, src);
 }
 
 bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
@@ -619,7 +662,7 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 	switch(TV_VT(var)) {
 	case VTYPE_PWSTR:
 	case VTYPE_BLOB:
-		log << "Blob/pwstr" << endl;
+		log << L"Blob/pwstr" << endl;
 		if(v2w(dst, var) == false) {
 			addError(ADDIN_E_VERY_IMPORTANT, L"OOConverter", L"Невозможно конвертировать значение", eGetContextException);
 			return false;
@@ -655,7 +698,7 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 		dst = warp(new Any());
 		break;
 	case VTYPE_PSTR:
-		log << "pstr" << endl;
+		log << L"pstr" << endl;
 		break;
 	case VTYPE_R4:
 		dst = warp(new Any(TV_R4(var)));
@@ -664,7 +707,7 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 		dst = warp(new Any(TV_R8(var)));
 		break;
 	case VTYPE_STR_BLOB:
-		log << "str_blob" << endl;
+		log << L"str_blob" << endl;
 		break;
 	case VTYPE_UI1:
 		dst = warp(new Any((sal_uInt8)TV_UI1(var)));
@@ -682,7 +725,7 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 		dst = warp(new Any((sal_uInt32)TV_UINT(var)));
 		break;
 	case VTYPE_VARIANT:
-		log << "variant" << endl;
+		log << L"variant" << endl;
 		break;
 
 	}
@@ -690,7 +733,11 @@ bool CAddInNativeOO::variant2wchar(wstring &dst, const tVariant *var)
 
 bool CAddInNativeOO::w2v(tVariant *var, const wstring &src)
 {
-
+	if(m_iMemory->AllocMemory((void**)&(var->pwstrVal), src.length() * sizeof(WCHAR_T))) {
+		convToShortWchar(&var->pwstrVal, src.c_str(), src.length());
+		var->wstrLen = src.length();
+		TV_VT(var) = VTYPE_PWSTR;
+	}
 }
 
 bool CAddInNativeOO::v2w(wstring &var, const tVariant *src)
@@ -706,6 +753,83 @@ bool CAddInNativeOO::v2w(wstring &var, const tVariant *src)
 	return false;
 }
 
+bool CAddInNativeOO::simpleAny2Variant(tVariant *var, const Any &src)
+{
+	switch(src.getValueTypeClass()) {
+	case TypeClass_BOOLEAN:
+	{
+		src >>= TV_BOOL(var);
+		TV_VT(var) = VTYPE_BOOL;
+		break;
+	}
+	case TypeClass_BYTE:
+	{
+		src >>= TV_I1(var);
+		TV_VT(var) = VTYPE_I1;
+		break;
+	}
+	case TypeClass_CHAR:
+	{
+		src >>= TV_UI2(var);
+		TV_VT(var) = VTYPE_UI2;
+		break;
+	}
+	case TypeClass_DOUBLE:
+		src >>= TV_R8(var);
+		TV_VT(var) = VTYPE_R8;
+		break;
+	case TypeClass_FLOAT:
+		src >>= TV_R4(var);
+		TV_VT(var) = VTYPE_R4;
+		break;
+	case TypeClass_HYPER:
+		src >>= TV_I8(var);
+		TV_VT(var) = VTYPE_I8;
+		break;
+	case TypeClass_LONG:
+	{
+		sal_Int32 val;
+		src >>= val;
+		TV_I4(var) = val;
+		TV_VT(var) = VTYPE_I4;
+		break;
+	}
+	case TypeClass_SHORT:
+		src >>= TV_I2(var);
+		TV_VT(var) = VTYPE_I2;
+		break;
+	case TypeClass_STRING:
+	{
+		OUString s;
+		src >>= s;
+		wstring ws(o2w(s));
+		w2v(var, ws);
+		break;
+	}
+	case TypeClass_UNSIGNED_HYPER:
+		src >>= TV_UI8(var);
+		TV_VT(var) = VTYPE_UI8;
+		break;
+	case TypeClass_UNSIGNED_LONG:
+	{
+		sal_uInt32 val;
+		src >>= val;
+		TV_UI4(var) = val;
+		TV_VT(var) = VTYPE_UI4;
+		break;
+	}
+	case TypeClass_UNSIGNED_SHORT:
+		src >>= TV_UI2(var);
+		TV_VT(var) = VTYPE_UI2;
+		break;
+	case TypeClass_VOID:
+		TV_VT(var) = VTYPE_EMPTY;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
 /////////////////////////////////////////////////////////////////////////////
 // LocaleBase
 //---------------------------------------------------------------------------//
@@ -718,7 +842,7 @@ bool CAddInNativeOO::setMemManager(void* mem)
 void CAddInNativeOO::addError(uint32_t wcode, const wchar_t* source, 
                         const wchar_t* descriptor, long code)
 {
-	log << "addError " << source << ": " << descriptor << endl;
+	log << L"addError " << source << L": " << descriptor << endl;
     if (m_iConnect)
     {
         WCHAR_T *err = 0;

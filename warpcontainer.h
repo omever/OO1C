@@ -36,6 +36,7 @@ public:
 	std::wstring warp(Any *);
 	Any * unwarp(const std::wstring);
 protected:
+	void cleanup();
 private:
 	std::vector<Any *> __any;
 };

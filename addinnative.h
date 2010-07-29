@@ -26,6 +26,9 @@ public:
         eMethSetProperty,
         eMethGetProperty,
         eMethGetValueType,
+        eMethCleanup,
+        eMethGetLog,
+        eMethShowValue,
         eMethLast      // Always last
     };
     
@@ -71,6 +74,7 @@ protected:
     bool variant2wchar(wstring &dst, const tVariant *var);
 	bool w2v(tVariant *var, const wstring &src);
 	bool v2w(wstring &var, const tVariant *src);
+	bool simpleAny2Variant(tVariant *var, const Any &src);
 private:
     long findName(const wchar_t* names[], const wchar_t* name, const uint32_t size) const;
     void addError(uint32_t wcode, const wchar_t* source, 
